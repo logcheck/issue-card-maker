@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+require 'netrc'
+require 'octokit'
+require 'trello'
+
+# TODO: add OptionParser so you don't have to hard code these things
+opts = {
+  repo: 'foo/bar',
+  issue_number: '7',
+  board_id: 'xyzzy',
+  list_name: 'Bugs'
+}
+
+# TODO: print instructions if auth info is missing
+
+n2 = Netrc.read
+trello_api_key, trello_member_token = n2['trello.com']
+
+if trello_member_token.nil?
+  puts "Go to this URL, generate a token, save it in ~/.netrc"
+  puts "https://trello.com/1/authorize?key=#{trello_api_key}&response_type=token&expiration=never&scope=read,write"
+  exit
+end
+
+trello = Trello::Client.new(
+  developer_public_key: trello_api_key,
+  member_token: trello_member_token
+)
+
+github = Octokit::Client.new(:netrc => true)
+# puts "hello, #{github.login}"
+
+issue = github.issue(opts[:repo], opts[:issue_number])
+
+board = trello.find(:board, opts[:board_id])
+
+# list by name
+list = board.lists.find { |l| l.name == opts[:list_name] }
+
+# TODO: fork ruby-trello, fix client.create(:card, ...)
+
+card = Trello::Card.new
+card.client = trello
+card.list_id = list.id
+card.name = issue.title
+card.desc = issue.body
+card.pos = 'bottom'
+card.save
+
+card.add_attachment(issue.html_url)
+
+issue_comment_text = "[Trello Card](#{card.short_url})"
+github.add_comment opts[:repo], opts[:issue_number], issue_comment_text
