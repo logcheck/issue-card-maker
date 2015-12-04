@@ -1,15 +1,30 @@
 #!/usr/bin/env ruby
 require 'netrc'
 require 'octokit'
+require 'optparse'
 require 'trello'
 
-# TODO: add OptionParser so you don't have to hard code these things
-opts = {
-  repo: 'foo/bar',
-  issue_number: '7',
-  board_id: 'xyzzy',
-  list_name: 'Bugs'
-}
+Options = Struct.new(:repo, :issue_numbers, :board_id, :list_name)
+
+options = Options.new(nil, Array.new, nil, nil)
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: make-card -b BOARD -l LIST -r REPO NUMBER, NUMBER, ..."
+
+  opts.on('-r', '--repository REPOSITORY', 'GitHub repository') do |repo|
+    options.repo = repo
+  end
+
+  opts.on('-b', '--board ID', 'Trello board identifier') do |board_id|
+    options.board_id = board_id
+  end
+
+  opts.on('-l', '--list NAME', 'Trello list name') do |name|
+    options.list_name = name
+  end
+end.parse!
+
+options.issue_numbers = ARGV
 
 # TODO: print instructions if auth info is missing
 
@@ -28,26 +43,33 @@ trello = Trello::Client.new(
 )
 
 github = Octokit::Client.new(:netrc => true)
-# puts "hello, #{github.login}"
 
-issue = github.issue(opts[:repo], opts[:issue_number])
+# find board by ID
+board = trello.find(:board, options.board_id)
 
-board = trello.find(:board, opts[:board_id])
+# find list by name
+list = board.lists.find { |l| l.name == options.list_name }
 
-# list by name
-list = board.lists.find { |l| l.name == opts[:list_name] }
+options.issue_numbers.each do |issue_number|
+  issue = github.issue(options.repo, issue_number)
 
-# TODO: fork ruby-trello, fix client.create(:card, ...)
+  puts "making card for ##{issue.number}: #{issue.title}"
 
-card = Trello::Card.new
-card.client = trello
-card.list_id = list.id
-card.name = issue.title
-card.desc = issue.body
-card.pos = 'bottom'
-card.save
+  # TODO: fork ruby-trello, fix client.create(:card, ...)
+  card = Trello::Card.new
+  card.client = trello
+  card.list_id = list.id
+  card.name = issue.title
+  card.desc = issue.body
+  card.pos = 'bottom'
+  card.save
 
-card.add_attachment(issue.html_url)
+  card.add_attachment(issue.html_url)
 
-issue_comment_text = "[Trello Card](#{card.short_url})"
-github.add_comment opts[:repo], opts[:issue_number], issue_comment_text
+  puts "=> #{card.short_url}"
+
+  # TODO: Put link in description; don't create card if a link is already
+  # in description
+  issue_comment_text = "[Trello Card](#{card.short_url})"
+  github.add_comment options.repo, issue_number, issue_comment_text
+end
