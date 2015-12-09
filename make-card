@@ -4,27 +4,92 @@ require 'octokit'
 require 'optparse'
 require 'trello'
 
-Options = Struct.new(:repo, :issue_numbers, :board_id, :list_name)
+class CardMaker
+  CARD_URL_PATTERN = %r{https://trello.com/c/(\w+)}
 
-options = Options.new(nil, Array.new, nil, nil)
+  def self.card_url_for_issue(issue)
+    CARD_URL_PATTERN.match(issue.body) { |m| m[0] }
+  end
+
+  attr_accessor :github_repository_name
+  attr_accessor :trello_board_id
+  attr_accessor :trello_list_name
+
+  attr_accessor :trello_client
+  attr_accessor :github_client
+
+  def valid?
+    if github_repository_name.nil?
+      puts "No GitHub repository name set!"
+      return false
+    end
+    if trello_board_id.nil?
+      puts "No Trello board ID set!"
+      return false
+    end
+    return true
+  end
+
+  def trello_board
+    @trello_board ||= trello_client.find(:board, trello_board_id)
+  end
+
+  # If no list name is specified, defaults to the first list.
+  def trello_list
+    @trello_list ||= begin
+      if trello_list_name
+        trello_board.lists.find { |l| l.name == trello_list_name }
+      else
+        trello_board.lists.first
+      end
+    end
+  end
+
+  def find_issue(number)
+    github_client.issue(github_repository_name, number)
+  end
+
+  def make_card_for_issue(issue)
+    puts "making card for ##{issue.number}: #{issue.title}"
+
+    # TODO: fork ruby-trello, fix client.create(:card, ...)
+    card = Trello::Card.new
+    card.client = trello_client
+    card.list_id = trello_list.id
+    card.name = issue.title
+    card.desc = issue.body
+    card.pos = 'bottom'
+    card.save
+
+    card.add_attachment(issue.html_url)
+
+    puts "=> card created: #{card.short_url}"
+
+    new_body = issue.body + "\n\nCard: #{card.short_url}"
+    github_client.update_issue(github_repository_name, issue.number, body: new_body)
+    puts "=> issue description updated"
+  end
+end
+
+card_maker = CardMaker.new
 
 OptionParser.new do |opts|
   opts.banner = "Usage: make-card -b BOARD -l LIST -r REPO NUMBER, NUMBER, ..."
 
   opts.on('-r', '--repository REPOSITORY', 'GitHub repository') do |repo|
-    options.repo = repo
+    card_maker.github_repository_name = repo
   end
 
-  opts.on('-b', '--board ID', 'Trello board identifier') do |board_id|
-    options.board_id = board_id
+  opts.on('-b', '--board ID', 'Trello board identifier') do |board|
+    card_maker.trello_board_id = board
   end
 
-  opts.on('-l', '--list NAME', 'Trello list name') do |name|
-    options.list_name = name
+  opts.on('-l', '--list NAME', 'Trello list name') do |list|
+    card_maker.trello_list_name = list
   end
 end.parse!
 
-options.issue_numbers = ARGV
+exit(1) unless card_maker.valid?
 
 # TODO: print instructions if auth info is missing
 
@@ -37,39 +102,24 @@ if trello_member_token.nil?
   exit
 end
 
-trello = Trello::Client.new(
+card_maker.trello_client = Trello::Client.new(
   developer_public_key: trello_api_key,
   member_token: trello_member_token
 )
 
-github = Octokit::Client.new(:netrc => true)
+card_maker.github_client = Octokit::Client.new(:netrc => true)
 
-# find board by ID
-board = trello.find(:board, options.board_id)
+if ARGV.empty?
+  puts "Nothing to do! (Try specifying some issue numbers.)"
+  exit 1
+end
 
-# find list by name
-list = board.lists.find { |l| l.name == options.list_name }
+ARGV.each do |issue_number|
+  issue = card_maker.find_issue(issue_number)
 
-options.issue_numbers.each do |issue_number|
-  issue = github.issue(options.repo, issue_number)
-
-  puts "making card for ##{issue.number}: #{issue.title}"
-
-  # TODO: fork ruby-trello, fix client.create(:card, ...)
-  card = Trello::Card.new
-  card.client = trello
-  card.list_id = list.id
-  card.name = issue.title
-  card.desc = issue.body
-  card.pos = 'bottom'
-  card.save
-
-  card.add_attachment(issue.html_url)
-
-  puts "=> #{card.short_url}"
-
-  # TODO: Put link in description; don't create card if a link is already
-  # in description
-  issue_comment_text = "[Trello Card](#{card.short_url})"
-  github.add_comment options.repo, issue_number, issue_comment_text
+  if card_url = CardMaker.card_url_for_issue(issue)
+    puts "issue ##{issue.number} already has card at #{card_url}"
+  else
+    card_maker.make_card_for_issue(issue)
+  end
 end

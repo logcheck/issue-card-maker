@@ -22,7 +22,6 @@ https://github.com/jeremytregunna/ruby-trello
 - Gemify!
 - Detect github repo from working directory?
 - Reimplement as a Chrome Extension in Javascript
-- Do multiple issues at a time
 
 ## Setup
 
