@@ -15,6 +15,7 @@ class CardMaker
   attr_accessor :github_repository_name
   attr_accessor :trello_board_id
   attr_accessor :trello_list_name
+  attr_accessor :trello_list_number
 
   attr_accessor :trello_client
   attr_accessor :github_client
@@ -28,6 +29,10 @@ class CardMaker
       puts "No Trello board ID set!"
       return false
     end
+    if trello_list_name && trello_list_number
+      puts "Can't specify a list name AND a list number!"
+      return false
+    end
     return true
   end
 
@@ -38,7 +43,9 @@ class CardMaker
   # If no list name is specified, defaults to the first list.
   def trello_list
     @trello_list ||= begin
-      if trello_list_name
+      if trello_list_number
+        trello_board.lists[trello_list_number - 1]
+      elsif trello_list_name
         trello_board.lists.find { |l| l.name == trello_list_name }
       else
         trello_board.lists.first
@@ -108,6 +115,10 @@ OptionParser.new do |opts|
 
   opts.on('-l', '--list NAME', 'Trello list name') do |list|
     card_maker.trello_list_name = list
+  end
+
+  opts.on('-i', '--index NUMBER', Integer, 'Trello list number') do |index|
+    card_maker.trello_list_number = index
   end
 end.parse!
 
