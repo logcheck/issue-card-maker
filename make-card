@@ -2,6 +2,7 @@
 require 'netrc'
 require 'octokit'
 require 'optparse'
+require 'psych'
 require 'trello'
 
 class CardMaker
@@ -71,17 +72,38 @@ class CardMaker
   end
 end
 
+class Aliases
+  def initialize
+    aliases = Psych.load_file('aliases.yml')
+    @boards = aliases['boards'] || Hash.new
+    @repos = aliases['repos'] || Hash.new
+  rescue Errno::ENOENT
+    @boards = Hash.new
+    @repos = Hash.new
+  end
+
+  def resolve_board(token)
+    @boards[token] || token
+  end
+
+  def resolve_repo(token)
+    @repos[token] || token
+  end
+end
+
+ALIASES = Aliases.new
+
 card_maker = CardMaker.new
 
 OptionParser.new do |opts|
   opts.banner = "Usage: make-card -b BOARD -l LIST -r REPO NUMBER, NUMBER, ..."
 
   opts.on('-r', '--repository REPOSITORY', 'GitHub repository') do |repo|
-    card_maker.github_repository_name = repo
+    card_maker.github_repository_name = ALIASES.resolve_repo(repo)
   end
 
   opts.on('-b', '--board ID', 'Trello board identifier') do |board|
-    card_maker.trello_board_id = board
+    card_maker.trello_board_id = ALIASES.resolve_board(board)
   end
 
   opts.on('-l', '--list NAME', 'Trello list name') do |list|
