@@ -1,8 +1,5 @@
 #!/usr/bin/env ruby
-require 'netrc'
-require 'octokit'
 require 'optparse'
-require 'trello'
 require 'aliases'
 require 'card_maker'
 
@@ -31,24 +28,6 @@ OptionParser.new do |opts|
 end.parse!
 
 exit(1) unless card_maker.valid?
-
-# TODO: print instructions if auth info is missing
-
-n2 = Netrc.read
-trello_api_key, trello_member_token = n2['trello.com']
-
-if trello_member_token.nil?
-  puts "Go to this URL, generate a token, save it in ~/.netrc"
-  puts "https://trello.com/1/authorize?key=#{trello_api_key}&response_type=token&expiration=never&scope=read,write"
-  exit
-end
-
-card_maker.trello_client = Trello::Client.new(
-  developer_public_key: trello_api_key,
-  member_token: trello_member_token
-)
-
-card_maker.github_client = Octokit::Client.new(:netrc => true)
 
 if ARGV.empty?
   puts "Nothing to do! (Try specifying some issue numbers.)"

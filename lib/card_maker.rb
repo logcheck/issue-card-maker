@@ -1,3 +1,6 @@
+require 'github_client'
+require 'trello_client'
+
 class CardMaker
   CARD_URL_PATTERN = %r{https://trello.com/c/(\w+)}
 
@@ -10,8 +13,13 @@ class CardMaker
   attr_accessor :trello_list_name
   attr_accessor :trello_list_number
 
-  attr_accessor :trello_client
-  attr_accessor :github_client
+  attr_reader :github_client
+  attr_reader :trello_client
+
+  def initialize
+    @github_client = new_github_client
+    @trello_client = new_trello_client
+  end
 
   def valid?
     if github_repository_name.nil?
