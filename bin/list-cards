@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require 'aliases'
+require 'card_lister'
+
+ALIASES = Aliases.new
+
+card_lister = CardLister.new
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: card-list -b BOARD -l LIST"
+
+  opts.on('-b', '--board ID', 'Trello board identifier') do |board|
+    card_lister.trello_board_id = ALIASES.resolve_board(board)
+  end
+
+  opts.on('-l', '--list NAME', 'Trello list name') do |list|
+    card_lister.trello_list_name = list
+  end
+
+  opts.on('-i', '--index NUMBER', Integer, 'Trello list number') do |index|
+    card_lister.trello_list_number = index
+  end
+end.parse!
+
+card_lister.column_specifiers = ARGV
+
+exit(1) unless card_lister.valid?
+
+card_lister.print($stdout)
