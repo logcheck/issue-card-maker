@@ -23,15 +23,15 @@ class CardMaker
 
   def valid?
     if github_repository_name.nil?
-      puts "No GitHub repository name set!"
+      $stderr.puts "No GitHub repository name set!"
       return false
     end
     if trello_board_id.nil?
-      puts "No Trello board ID set!"
+      $stderr.puts "No Trello board ID set!"
       return false
     end
     if trello_list_name && trello_list_number
-      puts "Can't specify a list name AND a list number!"
+      $stderr.puts "Can't specify a list name AND a list number!"
       return false
     end
     return true
@@ -59,7 +59,7 @@ class CardMaker
   end
 
   def make_card_for_issue(issue)
-    puts "making card for ##{issue.number}: #{issue.title}"
+    $stderr.puts "making card for ##{issue.number}: #{issue.title}"
 
     # TODO: fork ruby-trello, fix client.create(:card, ...)
     card = Trello::Card.new
@@ -72,10 +72,10 @@ class CardMaker
 
     card.add_attachment(issue.html_url)
 
-    puts "=> card created: #{card.short_url}"
+    $stderr.puts "=> card created: #{card.short_url}"
 
     new_body = issue.body + "\n\nCard: #{card.short_url}"
     github_client.update_issue(github_repository_name, issue.number, body: new_body)
-    puts "=> issue description updated"
+    $stderr.puts "=> issue description updated"
   end
 end

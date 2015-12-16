@@ -30,7 +30,7 @@ end.parse!
 exit(1) unless card_maker.valid?
 
 if ARGV.empty?
-  puts "Nothing to do! (Try specifying some issue numbers.)"
+  $stderr.puts "Nothing to do! (Try specifying some issue numbers.)"
   exit 1
 end
 
@@ -38,7 +38,7 @@ ARGV.each do |issue_number|
   issue = card_maker.find_issue(issue_number)
 
   if card_url = CardMaker.card_url_for_issue(issue)
-    puts "issue ##{issue.number} already has card at #{card_url}"
+    $stderr.puts "issue ##{issue.number} already has card at #{card_url}"
   else
     card_maker.make_card_for_issue(issue)
   end
